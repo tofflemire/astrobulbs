@@ -1,6 +1,6 @@
 from setuptools import setup
 
-setup(name='astrobulb',
+setup(name='astrobulbs',
       version='0.0.1',
       description='Photometry Pipeline',
       author='Ben Tofflemire',
