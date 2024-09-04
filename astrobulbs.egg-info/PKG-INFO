@@ -1,0 +1,32 @@
+Metadata-Version: 2.1
+Name: astrobulbs
+Version: 0.0.1
+Summary: Photometry Pipeline
+Home-page: https://github.com/tofflemire/astrobulb
+Author: Ben Tofflemire
+Author-email: tofflemire@utexas.edu
+License: MIT
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python
+Classifier: Topic :: Scientific/Engineering :: Astronomy
+Requires: numpy
+Requires: os
+Requires: time
+Requires: astropy
+Requires: scipy
+Requires: matplotlib
+Requires: pickle
+Requires: PyQt5
+Requires: copy
+Requires: glob
+Requires: sys
+Requires: saphires
+Requires: astroquery
+Requires: ccdproc
+Requires: photutils
+
+UNKNOWN
+
