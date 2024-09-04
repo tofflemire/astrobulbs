@@ -1451,7 +1451,7 @@ def ens_lc(in_file,target,date,scope,all_lc='yes',n_min=20,s_width=0.25):
             os.system('mv '+str(target)+'_'+str(date)+'_'+str(((matches['Target'])[0])[7])+\
                           '_enscomps_'+str(scope)+'.dat ./ens_data/'+str(date))
 
-    return 
+    return t_hjd,ens_mag,ens_mag_err
 
 
 def ens_fill(matches):
@@ -1692,6 +1692,7 @@ def boxcar(time,mag,width=None,symmetric=False,trim=False):
             s_mag[i]=np.median(mag[s_points])
 
     return time,s_mag
+
 
 
 

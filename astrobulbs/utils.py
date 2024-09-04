@@ -1537,3 +1537,4 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i):
         pp.close()
 
     print('')
+
