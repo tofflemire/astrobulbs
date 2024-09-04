@@ -1,5 +1,5 @@
-from astroblubs import utils
-from astroblubs import ensphot
+from astrobulbs import utils
+from astrobulbs import ensphot
 
 #import io
 #import utils
