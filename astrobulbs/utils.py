@@ -803,24 +803,50 @@ def write_csv_apphot(name, im_name, bjd, filt, airmass, results, sky):
                     +','+filt+','+str(x_pos)+','+str(y_pos)+','+str(airmass)+','+str(ra)+','+str(dec)+'\n')
     f.close()
 
-def organize_raw_images(target,filt_name):
+def organize_raw_images(target,filt_name,n_set = 3):
 
     f_names = glob.glob('*.fz')
 
     filt = np.zeros(len(f_names),dtype="U100")
+    datestr = np.zeros(len(f_names),dtype="U100")
     date = np.zeros(len(f_names))
     obsid = np.zeros(len(f_names),dtype=int)
     imageid = np.zeros(len(f_names),dtype=int)
+    nightid = np.zeros(len(f_names),dtype=int)
+    telid = np.zeros(len(f_names),dtype="U100")
+    molnum = np.zeros(len(f_names),dtype=int)
+    molfrnum = np.zeros(len(f_names),dtype=int) 
+    blkuid = np.zeros(len(f_names),dtype=int) 
 
     for i in range(len(f_names)):
         hdu = fits.open(f_names[i])
         filt[i] = hdu[1].header['FILTER']
         date[i] = hdu[1].header['MJD-OBS']
+        #datestr[i] = hdu[1].header['DATE-OBS'][:10].replace('-','')
+        datestr[i] = f_names[i][14:22]
+        telid[i] = hdu[1].header['TELESCOP']
+        molnum[i] = hdu[1].header['MOLNUM']
+        molfrnum[i] = hdu[1].header['MOLFRNUM']
+        blkuid[i] = hdu[1].header['BLKUID']
     
-    f_names = np.array(f_names)[np.argsort(date)]
-    filt = filt[np.argsort(date)]
-    date = date[np.argsort(date)]
-    
+
+    sequence_start = np.zeros(len(f_names)) 
+
+    blocks = np.unique(blkuid)
+
+    for i in range(len(f_names)):
+        match = ((blkuid == blkuid[i]) & (molfrnum == 1))
+        sequence_start[i] = date[match][0]
+
+    f_names = np.array(f_names)[np.lexsort((date,sequence_start))]
+    filt = filt[np.lexsort((date,sequence_start))]
+    datestr = datestr[np.lexsort((date,sequence_start))]
+    telid = telid[np.lexsort((date,sequence_start))]
+    molfrnum = molfrnum[np.lexsort((date,sequence_start))]
+    date = date[np.lexsort((date,sequence_start))]
+
+
+    nightnum = 0
     idnum = 0
     imagenum = 0
     
@@ -830,30 +856,40 @@ def organize_raw_images(target,filt_name):
         
         obsid[i] = int(idnum)
         imageid[i] = int(imagenum)
+        nightid[i] = int(nightnum)
 
         if filt[i] == filt_name:
             
-            print(f_names[i],obsid[i],imageid[i])
+            print(f_names[i],datestr[i],nightid[i],imageid[i],molfrnum[i]-1,obsid[i])
+
+            if imageid[i] != molfrnum[i]-1:
+                print('Something is wrong with the matching')
         
-            f.write(f_names[i]+','+str(obsid[i])+','+str(imageid[i])+'\n')
+            f.write(f_names[i]+','+datestr[i]+','+str(nightid[i])+','+str(imageid[i])+','+str(obsid[i])+'\n')
     
             if i < obsid.size-1:
-                if date[i+1]-date[i] > 10.0/60.0/24.0:
-                    idnum += 1
-                    print('')
+                if datestr[i+1] != datestr[i]:
+                    nightnum = 0
+                    idnum +=1
                     imagenum = 0
-                else:
+
+                if ((datestr[i+1] == datestr[i]) & (imagenum < n_set)):
                     imagenum += 1
+
+                if ((datestr[i+1] == datestr[i]) & (imagenum > n_set-1)):
+                    imagenum = 0
+                    nightnum += 1
+                    idnum += 1
 
     f.close()
 
-    return f_names,filt,obsid,imageid
+    return f_names,filt,obsid,imageid,datestr,nightid
 
-def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i):
+def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,datestr_i):
 
     print('')
 
-    name_out = target+'_'+filt_i+'_'+str(int(eid_i))
+    name_out = target+'_'+filt_i+'_'+datestr_i+'_'+str(nightid_i)+'_'+str(int(eid_i))
 
     if os.path.exists('./'+name_out+'.csv'):
         print(name_out+' is already finished, skipping.')
