@@ -980,6 +980,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
                     ax.add_patch(circle)
 
             pp.savefig()
+            plt.close()
 
         avg_airmass = np.mean(airmass)
 
@@ -1027,6 +1028,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
         ax.imshow(im_1_star,origin='lower')
 
         pp.savefig()
+        plt.close()
 
         size = 30
         im_2_star = im_data[1][r_1-size:r_1+size+1,c_1-size:c_1+size+1]
@@ -1049,6 +1051,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
         ax.axvline(im_1_fwhm/2.0)
 
         pp.savefig()
+        plt.close()
 
 
         fig,ax = plt.subplots(4,figsize=(6.4,10))
@@ -1076,7 +1079,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
 
         plt.tight_layout()
         pp.savefig()
-
+        plt.close()
 
         fig,ax = plt.subplots()
         
@@ -1085,7 +1088,8 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
         ax.imshow(median_image,norm=norm_med,origin='lower')
         
         pp.savefig()
-        
+        plt.close()
+
 
         #This is the aperture photometry verision
         phot_table = aperture_phot(median_image,im_1_fwhm,im_1_ratio,im_1_theta)
@@ -1155,6 +1159,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
                     ax.plot(phot_table['xcenter'],phot_table['ycenter'],'o',ms=5,fillstyle='none',color='C0')
         
                     pp.savefig()
+                    plt.close()
 
                     f = open(name_out+'_summary.txt', 'w')
                     f.write('Summary: Target was not found in original search or a 2xFWHM search\n')
@@ -1213,6 +1218,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
                     ax.plot(phot_table['xcenter'],phot_table['ycenter'],'o',ms=5,fillstyle='none',color='C0')
         
                     pp.savefig()
+                    plt.close()
     
     
                     fig = plt.figure() 
@@ -1573,4 +1579,5 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
         pp.close()
 
     print('')
+
 
