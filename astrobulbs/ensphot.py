@@ -493,6 +493,7 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
     
         keys=np.array(list(matches.keys()))
     
+        print('Image Set, Comparison Stars Found')
         ss=np.array(keys,dtype=str)
         ss_eff=np.zeros(ee.size) #num of non-zero (10^-8) weight stars. 
         for i in range(ee.size):
