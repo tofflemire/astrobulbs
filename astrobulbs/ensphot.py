@@ -313,7 +313,7 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
             to_m = ((fname == ee[i]) & (found == 0.0))
             #to_m, to match, is a mask that selects unfound stars in the current image
             #updated for every image
-            
+
             if np.sum(to_m) > 0:
                 #If there are things to match, continue
 
@@ -466,8 +466,8 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
                                         dec[fname == ee[i]][0]]+w+
                                         [air[fname == ee[i]][0]])
 
-                        if ((i == 0) & (j == 1)):
-                            print(k,fname[(fname == ee[k])][0])
+                        #if ((i == 0) & (j == 1)):
+                        #    print(k,fname[(fname == ee[k])][0])
 
                     #print(t_m[m_name][0])
                     if np.sum([row[14] for row in t_m[m_name]]) >= min_apps:
