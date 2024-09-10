@@ -6,7 +6,6 @@ import glob as glob
 import sys
 
 import saphires as saph
-#import ens_phot as ensp
 
 import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
@@ -596,7 +595,8 @@ def get_residuals(results, photometry, fwhm, image):
     size = int(5*fwhm)
     if (size % 2) == 0:
     	size = size + 1
-
+    
+    
     final_stars = extract_stars(nddata, results_tbl, size=size)
     residual_stars = extract_stars(ndresidual, results_tbl, size=size)
 
@@ -810,25 +810,29 @@ def organize_raw_images(target,filt_name,n_set = 3):
     filt = np.zeros(len(f_names),dtype="U100")
     datestr = np.zeros(len(f_names),dtype="U100")
     date = np.zeros(len(f_names))
-    obsid = np.zeros(len(f_names),dtype=int)
-    imageid = np.zeros(len(f_names),dtype=int)
-    nightid = np.zeros(len(f_names),dtype=int)
+    dateobs = np.zeros(len(f_names),dtype="U100")
     telid = np.zeros(len(f_names),dtype="U100")
     molnum = np.zeros(len(f_names),dtype=int)
     molfrnum = np.zeros(len(f_names),dtype=int) 
     blkuid = np.zeros(len(f_names),dtype=int) 
+    exptime = np.zeros(len(f_names))
+
+    obsid = np.zeros(len(f_names),dtype=int)
+    imageid = np.zeros(len(f_names),dtype=int)
+    nightid = np.zeros(len(f_names),dtype=int)
 
     for i in range(len(f_names)):
         hdu = fits.open(f_names[i])
+        
         filt[i] = hdu[1].header['FILTER']
-        date[i] = hdu[1].header['MJD-OBS']
-        #datestr[i] = hdu[1].header['DATE-OBS'][:10].replace('-','')
         datestr[i] = f_names[i][14:22]
+        date[i] = hdu[1].header['MJD-OBS']
+        dateobs[i] = hdu[1].header['DATE-OBS']
         telid[i] = hdu[1].header['TELESCOP']
         molnum[i] = hdu[1].header['MOLNUM']
         molfrnum[i] = hdu[1].header['MOLFRNUM']
         blkuid[i] = hdu[1].header['BLKUID']
-    
+        exptime[i] = hdu[1].header['EXPTIME']
 
     sequence_start = np.zeros(len(f_names)) 
 
@@ -841,45 +845,86 @@ def organize_raw_images(target,filt_name,n_set = 3):
     f_names = np.array(f_names)[np.lexsort((date,sequence_start))]
     filt = filt[np.lexsort((date,sequence_start))]
     datestr = datestr[np.lexsort((date,sequence_start))]
+    dateobs = dateobs[np.lexsort((date,sequence_start))]
     telid = telid[np.lexsort((date,sequence_start))]
+    molnum = molnum[np.lexsort((date,sequence_start))]
     molfrnum = molfrnum[np.lexsort((date,sequence_start))]
-    date = date[np.lexsort((date,sequence_start))]
+    blkuid = blkuid[np.lexsort((date,sequence_start))]
+    exptime = exptime[np.lexsort((date,sequence_start))]
 
+    date = date[np.lexsort((date,sequence_start))]
 
     nightnum = 0
     idnum = 0
-    imagenum = 0
+    #imagenum = 0
     
+    blocks = np.unique(blkuid) #now sorted by the start time of the sequence
+
+    for i in range(blocks.size):
+        match = (blkuid == blocks[i])
+
+        datestr_i = datestr[match][0]
+
+        if np.sum(match) < n_set:
+            print('Block '+str(blocks[i])+' is incomplete')
+
+        if np.sum(match) > n_set:
+            print('Block '+str(blocks[i])+' has too many images')
+
+        obsid[match] = idnum
+
+        imageid[match] = molfrnum[match]-1
+
+        nightid[match] = nightnum
+
+        idnum += 1
+
+        if i < blocks.size-1:
+            datestr_n = datestr[blkuid == blocks[i+1]][0]
+        
+            if datestr_i != datestr_n:
+                nightnum = 0
+            else:
+                nightnum += 1
+
     f = open(target+'_epochs_'+filt_name+'.csv','w')
     
-    for i in range(obsid.size):
-        
-        obsid[i] = int(idnum)
-        imageid[i] = int(imagenum)
-        nightid[i] = int(nightnum)
+    for i in range(f_names.size):
+        f.write(f_names[i]+','+datestr[i]+','+str(nightid[i])+','+str(imageid[i])+','+str(obsid[i])+','+str(blkuid[i])+','+dateobs[i]+','+str(exptime[i])+','+telid[i]+'\n')
 
-        if filt[i] == filt_name:
-            
-            print(f_names[i],datestr[i],nightid[i],imageid[i],molfrnum[i]-1,obsid[i])
+        print(f_names[i],datestr[i],nightid[i],imageid[i],molfrnum[i]-1,obsid[i],)
 
-            if imageid[i] != molfrnum[i]-1:
-                print('Something is wrong with the matching')
-        
-            f.write(f_names[i]+','+datestr[i]+','+str(nightid[i])+','+str(imageid[i])+','+str(obsid[i])+'\n')
-    
-            if i < obsid.size-1:
-                if datestr[i+1] != datestr[i]:
-                    nightnum = 0
-                    idnum +=1
-                    imagenum = 0
+    f.close()
 
-                if ((datestr[i+1] == datestr[i]) & (imagenum < n_set)):
-                    imagenum += 1
 
-                if ((datestr[i+1] == datestr[i]) & (imagenum > n_set-1)):
-                    imagenum = 0
-                    nightnum += 1
-                    idnum += 1
+#    for i in range(obsid.size):
+#        
+#        obsid[i] = int(idnum)
+#        imageid[i] = int(imagenum)
+#        nightid[i] = int(nightnum)
+#
+#        if filt[i] == filt_name:
+#            
+#            print(f_names[i],datestr[i],nightid[i],imageid[i],molfrnum[i]-1,obsid[i],)
+#
+#            if imageid[i] != molfrnum[i]-1:
+#                print('Something is wrong with the matching')
+#        
+#            f.write(f_names[i]+','+datestr[i]+','+str(nightid[i])+','+str(imageid[i])+','+str(obsid[i])+','+str(blkuid[i])+','+str(dateobs[i])+','+str(exptime[i])+','+str(telid[i])+'\n')
+#    
+#            if i < obsid.size-1:
+#                if datestr[i+1] != datestr[i]:
+#                    nightnum = 0
+#                    idnum +=1
+#                    imagenum = 0
+#
+#                if ((datestr[i+1] == datestr[i]) & (imagenum < n_set)):
+#                    imagenum += 1
+#
+#                if ((datestr[i+1] == datestr[i]) & (imagenum > n_set-1)):
+#                    imagenum = 0
+#                    nightnum += 1
+#                    idnum += 1
 
     f.close()
 
@@ -889,7 +934,10 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
 
     print('')
 
-    name_out = target+'_'+filt_i+'_'+datestr_i+'_'+str(nightid_i)+'_'+str(int(eid_i))
+    nightid_out = nightid_i[(eid == eid_i)][0]
+    datestr_out = datestr_i[(eid == eid_i)][0]
+
+    name_out = target+'_'+filt_i+'_'+datestr_out+'_'+str(nightid_out)+'_'+str(int(eid_i))
 
     if os.path.exists('./'+name_out+'.csv'):
         print(name_out+' is already finished, skipping.')
@@ -1244,7 +1292,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
                     plt.close()
         
     
-                    write_csv_apphot(name=name_out+'.csv', im_name=im_1[:22], bjd=bjd[0], filt=im_1_header['FILTER'], airmass=avg_airmass, results=phot_table, sky=sky_web)
+                    write_csv_apphot(name=name_out+'.csv', im_name=im_1[:22]+'_'+str(nightid_out), bjd=bjd[0], filt=im_1_header['FILTER'], airmass=avg_airmass, results=phot_table, sky=sky_web)
         
                     f = open(name_out+'_summary.txt', 'w')
                     f.write('Summary: Successful run with the 2x FWHM search.\n')
@@ -1308,6 +1356,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
                 ax.plot(phot_table['xcenter'],phot_table['ycenter'],'o',ms=5,fillstyle='none',color='C0')
         
                 pp.savefig()
+                plt.close()
 
 
                 fig = plt.figure() 
@@ -1333,7 +1382,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
                 plt.close()
     
 
-                write_csv_apphot(name=name_out+'.csv', im_name=im_1[:22], bjd=bjd[0], filt=im_1_header['FILTER'], airmass=avg_airmass, results=phot_table, sky=sky_web)
+                write_csv_apphot(name=name_out+'.csv', im_name=im_1[:22]+'_'+str(nightid_out), bjd=bjd[0], filt=im_1_header['FILTER'], airmass=avg_airmass, results=phot_table, sky=sky_web)
         
                 f = open(name_out+'_summary.txt', 'w')
                 f.write('Summary: Successful run!\n')
@@ -1411,6 +1460,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
                     ax.plot(phot_table['xcenter'],phot_table['ycenter'],'o',ms=5,fillstyle='none',color='C0')
             
                     pp.savefig()
+                    plt.close()
 
 
                     f = open(name_out+'_summary.txt', 'w')
@@ -1471,7 +1521,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
                     ax.plot(phot_table['xcenter'],phot_table['ycenter'],'o',ms=5,fillstyle='none',color='C0')
             
                     pp.savefig()
-
+                    plt.close()
 
                     fig = plt.figure() 
                     norm_med = ImageNormalize(median_image, interval=ZScaleInterval(), stretch=SqrtStretch())
@@ -1495,7 +1545,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
         
                     plt.close()        
     #
-                    write_csv_apphot(name=name_out+'.csv', im_name=im_1[:22], bjd=bjd[0], filt=im_1_header['FILTER'], airmass=avg_airmass, results=phot_table, sky=sky_web)
+                    write_csv_apphot(name=name_out+'.csv', im_name=im_1[:22]+'_'+str(nightid_out), bjd=bjd[0], filt=im_1_header['FILTER'], airmass=avg_airmass, results=phot_table, sky=sky_web)
             
                     f = open(name_out+'_summary.txt', 'w')
                     f.write('Summary: Successful run with a 2xFWHM search.\n')
@@ -1559,6 +1609,7 @@ def photometry_wrap(target,tra,tdec,names,filt,eid,iid,filt_i,eid_i,nightid_i,da
                 ax.plot(phot_table['xcenter'],phot_table['ycenter'],'o',ms=5,fillstyle='none',color='C0')
             
                 pp.savefig()
+                plt.close()
 
                 f = open(name_out+'_summary.txt', 'w')
                 f.write('Summary: WCS failed in original search and the 2xFWHM search\n')

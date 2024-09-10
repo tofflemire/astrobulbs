@@ -13,7 +13,7 @@ import astropy.io.fits as fits
 import pickle
 from astropy.coordinates import SkyCoord, EarthLocation
 import astropy.units as u
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage import gaussian_filter
 
 #version 0.1.0 - 2021/07/22
 
@@ -211,6 +211,8 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
                                          dtype='U100,f,float64,f,f,f,f,U10,f,\
                                          f,f,float64,float64')
     
+    print('Number of frames:',np.unique(fname).size)
+
     g=((py > edge_buffer) & 
        (px > edge_buffer) & 
        (mag < mag_ulim) & 
@@ -220,7 +222,9 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
        (py < py_max-edge_buffer) &
        (px < px_max-edge_buffer))
 
-    print(np.sum(g))
+    print('Number of frames that pass the cuts:',np.unique(fname).size)
+
+    print('Numebr of stars passing the cut across the whole data set:',np.sum(g))
 
     fname=fname[g]
     iid=iid[g]
@@ -246,6 +250,9 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
     print('')
     print('Target Distace Match ('+str(d_max)+' arcsec = '+str(d_max/3600)+')')
 
+    #A mask to exclude stars that have already been found.
+    found=np.zeros(fname.size)
+
     for i in range(ee.size):
         m_list = (fname == ee[i])
 
@@ -269,6 +276,9 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
                                       ((ra[m_list])[tar_match])[0],
                                       ((dec[m_list])[tar_match])[0]]+w+
                                       [((air[m_list])[tar_match])[0]])
+            
+            found[((fname == ee[i]) & (iid == ((iid[m_list])[tar_match])[0]))] = 1
+        
         else:
             bad_frames=np.append(bad_frames,ee[i])
 
@@ -292,16 +302,18 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
 
     if cont == 'y':
         print('Continuing with '+str(ee.size)+' frames')
-        found=np.zeros(fname.size)
-        #A mask to exclude stars that have already been found.
+        
         for i in range(ee.size-min_apps):
             #I subtract min_apps because if you find a new star that hasn't 
             #been matched in the previous images, even if you match it in each
             #sequential image, it won't be enough to meet the min_apps 
             #criterion.                   
+            #i is for each unique image
 
             to_m = ((fname == ee[i]) & (found == 0.0))
-
+            #to_m, to match, is a mask that selects unfound stars in the current image
+            #updated for every image
+            
             if np.sum(to_m) > 0:
                 #If there are things to match, continue
 
@@ -309,154 +321,158 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
                     #for each star in exposure ee
                     keys=matches.keys()
 
-                    if ((iid[to_m])[j]) not in [((matches[d])[i])[1] for d in keys]:
-                       #This conditional doesn't allow the Target star to 
-                       #be used as a comparison star
+                    #if ((iid[to_m])[j]) not in [((matches[d])[i])[1] for d in keys]:
+                    #   #This conditional doesn't allow the Target star to 
+                    #   #be used as a comparison star
+                    #   #I think this is redundant, but I'm leaving it in for now
 
-                        if len(matches.keys()) == 1:
-                            m_name='0001'
-                        else:
-                            keys=np.array(list(matches.keys()))
-                            run_ind=np.max(np.array(keys[keys != 'Target'],
-                                                    dtype=float))
-                            m_name=str(int(run_ind+1)).zfill(4)
+                    if len(matches.keys()) == 1:
+                        m_name='0001'
+                    else:
+                        keys=np.array(list(matches.keys()))
+                        run_ind=np.max(np.array(keys[keys != 'Target'],
+                                                dtype=float))
+                        m_name=str(int(run_ind+1)).zfill(4)
 
-                        t_m={m_name:[]}
+                    t_m={m_name:[]}
+                    #Create a dictionary for this star
 
-                        found_id=np.empty(0,dtype=int)
-                            #Stores the indecies of matched stars that no 
-                            # longer need to be searched over. Updates mask.
+                    found_id=np.empty(0,dtype=int)
+                        #Stores the indecies of matched stars that no 
+                        # longer need to be searched over. Updates the found mask below.
 
-                        for l in range(i):
-                        	#this for loop adds dictionary rows for previous images
-                        	#where this star was not found. If this is the first image
-                        	#it does nothing.
-                            w = [1.0, 1.0, 1.0*10**-20, 1.0*10**-20]
+                    for l in range(i):
+                    	#this for loop adds dictionary rows for previous images
+                    	#where this star was not found. If this is the first image
+                    	#it does nothing.
+                        w = [1.0, 1.0, 1.0*10**-20, 1.0*10**-20]
+                    
+                        t_m[m_name].append([\
+                                'NotFound',
+                                0,
+                                hjd[fname == ee[l]][0],
+                                0.1,
+                                0.1,
+                                0.1,
+                                0.1,
+                                filt[fname == ee[l]][0],
+                                px[fname == ee[l]][0],
+                                py[fname == ee[l]][0],
+                                ra[fname == ee[l]][0],
+                                dec[fname == ee[l]][0]]+w+
+                                [air[fname == ee[l]][0]])
+                    
+                    for k in range(ee.size-i):
+                    	#this for loop places data rows for the current image
+                    	# and searches subsequent images. 
+                       	#Subtract 'i' because you don't need to
+                       	#match backwards. 
+                        k=k+i
+
+                        if k == i:
+                        	#i.e. this image, append data for this image
+                            w = [1.0, 1.0, 1.0, 1.0/((magerr[to_m])[j])**2]
+
+                            t_m[m_name].append([(fname[to_m])[j],
+                                                (iid[to_m])[j],
+                                                (hjd[to_m])[j],
+                                                (flux[to_m])[j],
+                                                (fluxerr[to_m])[j],
+                                                (mag[to_m])[j],
+                                                (magerr[to_m])[j],
+                                                (filt[to_m])[j],
+                                                (px[to_m])[j],
+                                                (py[to_m])[j],
+                                                (ra[to_m])[j],
+                                                (dec[to_m])[j]]+w+
+                                               [(air[to_m])[j]])
+
+                            found_id=np.append(found_id,np.where([(fname == (fname[to_m])[j]) & (iid == (iid[to_m])[j])])[1][0])
                         
-                            t_m[m_name].append([\
-                                    'NotFound',
-                                    0,
-                                    hjd[fname == fname[l]][0],
-                                    0.1,
-                                    0.1,
-                                    0.1,
-                                    0.1,
-                                    filt[fname == fname[l]][0],
-                                    px[fname == fname[l]][0],
-                                    py[fname == fname[l]][0],
-                                    ra[fname == fname[l]][0],
-                                    dec[fname == fname[l]][0]]+w+
-                                               [air[fname == fname[l]][0]])
-                        
-                        for k in range(ee.size-i):
-                        	#this for loop places data rows for the current image
-                        	# and searches subsequent images. 
-                           	#Subtract 'i' because you don't need to
-                           	#match backwards. 
-                            k=k+i
+                        if k > i:
+                        	#i.e. subsequent images
 
-                            if k == i:
-                            	#i.e. this image, append data for this image
-                                w = [1.0, 1.0, 1.0, 1.0/((magerr[to_m])[j])**2]
-
-                                t_m[m_name].append([(fname[to_m])[j],
-                                                    (iid[to_m])[j],
-                                                    (hjd[to_m])[j],
-                                                    (flux[to_m])[j],
-                                                    (fluxerr[to_m])[j],
-                                                    (mag[to_m])[j],
-                                                    (magerr[to_m])[j],
-                                                    (filt[to_m])[j],
-                                                    (px[to_m])[j],
-                                                    (py[to_m])[j],
-                                                    (ra[to_m])[j],
-                                                    (dec[to_m])[j]]+w+
-                                                   [(air[to_m])[j]])
-
-                                found_id=np.append(found_id,np.where([(fname == (fname[to_m])[j]) & (iid == (iid[to_m])[j])])[1][0])
+                            m_list=((fname == ee[k]) & (found == 0.0))
+                            #list of stars that have not yet been matched in the subsequent image
+                            #local mask for the next image
                             
-                            else:
-                            	#i.e. subsequent images
+                            if np.sum(m_list) > 0: #i.e. if there are stars in this image that have not been matched.
 
-                                m_list=((fname == ee[k]) & (found == 0.0))
-                                #list of stars that have not yet been matched 
-                                
-                                if np.sum(m_list) > 0: #i.e. if there are stars in this image that have not been matched.
+                                d=np.sqrt(((ra[to_m])[j] - ra[m_list])**2 + ((dec[to_m])[j] - dec[m_list])**2)
 
+                                d_add=np.append(d,100.0)
 
-                                    d=np.sqrt(((ra[to_m])[j] - ra[m_list])**2 + ((dec[to_m])[j] - dec[m_list])**2)
+                                c_match=(d == np.min(d))
 
-                                    d_add=np.append(d,100.0)
+                                if ((np.min(d) < d_max/3600.0) &						#distance is less than the threshold
+                                    ((np.sort(d_add))[1] > nn_dist*(pixs/3600.0))		#nearest neightbor is not too close
+                                    )==True:
 
-                                    c_match=(d == np.min(d))
+                                	#if conditions are met for this row, add its photometry data to the dictionary
 
-                                    if ((np.min(d) < d_max/3600.0) &						#distance is less than the threshold
-                                        ((np.sort(d_add))[1] > nn_dist*(pixs/3600.0))		#nearest neightbor is not too close
-                                        )==True:
+                                    w = [1.0, 1.0, 1.0, 1.0/(((magerr[m_list])[c_match])[0])**2]
 
-                                    	#if conditions are met for this row, add its photometry data to the dictionary
-
-                                        w = [1.0, 1.0, 1.0, 1.0/(((magerr[m_list])[c_match])[0])**2]
-
-                                        found_id=np.append(found_id,np.where([(fname == ((fname[m_list])[c_match])[0]) & (iid == ((iid[m_list])[c_match])[0])])[1][0])
-                                        
-                                        t_m[m_name].append( \
-                                            [((fname[m_list])[c_match])[0],
-                                             ((iid[m_list])[c_match])[0],
-                                             ((hjd[m_list])[c_match])[0],
-                                             ((flux[m_list])[c_match])[0],
-                                             ((fluxerr[m_list])[c_match])[0],
-                                             ((mag[m_list])[c_match])[0],
-                                             ((magerr[m_list])[c_match])[0],
-                                             ((filt[m_list])[c_match])[0],
-                                             ((px[m_list])[c_match])[0],
-                                             ((py[m_list])[c_match])[0],
-                                             ((ra[m_list])[c_match])[0],
-                                             ((dec[m_list])[c_match])[0]]+w+
-                                            [((air[m_list])[c_match])[0]])
-                                    else:
-                                    	#if not, add not found values
-                                        w = [1.0, 1.0 ,1.0*10**-20, 1.0*10**-20]
-
-                                        t_m[m_name].append([\
-                                                'NotFound',
-                                                0,
-                                                hjd[fname == fname[i]][0],
-                                                0.1,
-                                                0.1,
-                                                0.1,
-                                                0.1,
-                                                filt[fname == fname[i]][0],
-                                                px[fname == fname[i]][0],
-                                                py[fname == fname[i]][0],
-                                                ra[fname == fname[i]][0],
-                                                dec[fname == fname[i]][0]] \
-                                                           +w+ \
-                                                [air[fname == fname[i]][0]])
-
-                                else:	#i.e. there are no stars left in this image that have not already been matched
-
-                                    w = [1.0, 1.0, 1.0*10**-20, 1.0*10**-20]
+                                    found_id=np.append(found_id,np.where([(fname == ((fname[m_list])[c_match])[0]) & (iid == ((iid[m_list])[c_match])[0])])[1][0])
+                                    
+                                    t_m[m_name].append( \
+                                        [((fname[m_list])[c_match])[0],
+                                         ((iid[m_list])[c_match])[0],
+                                         ((hjd[m_list])[c_match])[0],
+                                         ((flux[m_list])[c_match])[0],
+                                         ((fluxerr[m_list])[c_match])[0],
+                                         ((mag[m_list])[c_match])[0],
+                                         ((magerr[m_list])[c_match])[0],
+                                         ((filt[m_list])[c_match])[0],
+                                         ((px[m_list])[c_match])[0],
+                                         ((py[m_list])[c_match])[0],
+                                         ((ra[m_list])[c_match])[0],
+                                         ((dec[m_list])[c_match])[0]]+w+
+                                        [((air[m_list])[c_match])[0]])
+                                else:
+                                	#if not, add not found values
+                                    w = [1.0, 1.0 ,1.0*10**-20, 1.0*10**-20]
 
                                     t_m[m_name].append([\
                                             'NotFound',
                                             0,
-                                            hjd[fname == fname[i]][0],
+                                            hjd[fname == ee[i]][0],
                                             0.1,
                                             0.1,
                                             0.1,
                                             0.1,
-                                            filt,
-                                            px[fname == fname[i]][0],
-                                            py[fname == fname[i]][0],
-                                            ra[fname == fname[i]][0],
-                                            dec[fname == fname[i]][0]]+w+
-                                             [air[fname == fname[i]][0]])
+                                            filt[fname == ee[i]][0],
+                                            px[fname == ee[i]][0],
+                                            py[fname == ee[i]][0],
+                                            ra[fname == ee[i]][0],
+                                            dec[fname == ee[i]][0]] +w+ \
+                                            [air[fname == ee[i]][0]])
 
-                        #print(t_m[m_name][0])
-                        if np.sum([row[14] for row in t_m[m_name]]) >= min_apps:
-                            matches[m_name]=t_m[m_name]
-                            found[found_id] = 1                            
+                            else:	#i.e. there are no stars left in this image that have not already been matched, i.e., the star is not found.
+
+                                w = [1.0, 1.0, 1.0*10**-20, 1.0*10**-20]
+
+                                t_m[m_name].append([\
+                                        'NotFound',
+                                        0,
+                                        hjd[fname == ee[i]][0],
+                                        0.1,
+                                        0.1,
+                                        0.1,
+                                        0.1,
+                                        filt,
+                                        px[fname == ee[i]][0],
+                                        py[fname == ee[i]][0],
+                                        ra[fname == ee[i]][0],
+                                        dec[fname == ee[i]][0]]+w+
+                                        [air[fname == ee[i]][0]])
+
+                        if ((i == 0) & (j == 1)):
+                            print(k,fname[(fname == ee[k])][0])
+
+                    #print(t_m[m_name][0])
+                    if np.sum([row[14] for row in t_m[m_name]]) >= min_apps:
+                        matches[m_name]=t_m[m_name]
+                        found[found_id] = 1                            
                                                                            
             print(float(i)/(ee.size-min_apps))
 
@@ -474,6 +490,21 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
         used=np.array([in_file,scope,out_file,d_max,nn_dist,min_apps,mag_ulim,
                        mag_llim,magerr_ulim],dtype='str')
         np.savetxt(out_file+'.mpar',np.c_[name,used],fmt='%s')
+    
+        keys=np.array(list(matches.keys()))
+    
+        ss=np.array(keys,dtype=str)
+        ss_eff=np.zeros(ee.size) #num of non-zero (10^-8) weight stars. 
+        for i in range(ee.size):
+            k=0
+            for j in range(ss.size):
+                if (matches[ss[j]][i][12] == 1.0) &\
+                   (matches[ss[j]][i][13] == 1.0) &\
+                   (matches[ss[j]][i][14] == 1.0) == True:
+                    k=k+1
+            ss_eff[i]=k
+            print(ee[i],k)
+
 
     return
 
