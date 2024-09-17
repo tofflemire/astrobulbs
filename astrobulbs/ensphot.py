@@ -1307,7 +1307,7 @@ def ens_lc(in_file,target,date,scope,all_lc='yes',n_min=20,s_width=0.25):
         ens_mag=(t_mag-t_em)
         ens_mag_err=np.sqrt(t_magerr**2+((t_emerr)**2 / t_ss_eff))
 
-        print('adjusting error...')
+        print('adjusting error')
         dm0 = np.min((m0[p==1][np.argsort(m0[p==1])] - np.roll(m0[p==1][np.argsort(m0[p==1])],1))[1:])
         x_new = np.arange(np.min(m0[p==1]),np.max(m0[p==1]),dm0)
         flinear = interpolate.interp1d(m0[p==1][np.argsort(m0[p==1])],m0err[p==1][np.argsort(m0[p==1])])
@@ -1315,9 +1315,17 @@ def ens_lc(in_file,target,date,scope,all_lc='yes',n_min=20,s_width=0.25):
         y_smooth = gaussian_filter(y_linear,s_width/dm0)
         emp_std = y_smooth[np.abs(x_new-m0[keys=='Target']) == np.min(np.abs(x_new-m0[keys=='Target']))]
 
+        print('Min statistical error: ',np.min(ens_mag_err))
+        print('Empirical std: ',emp_std[0])
+
         err_inflate = np.sqrt(emp_std**2 - np.min(ens_mag_err)**2)
 
         ens_mag_err = np.sqrt(ens_mag_err**2 + err_inflate**2)
+
+        print('Updated min exposure error: ',np.min(ens_mag_err))
+
+        print('Press Return to continue')
+        print('')
 
         t_ra_i=np.array([row[10] for row in matches['Target']])
         t_ra=np.mean(t_ra_i[(g == True) & (ss_eff > 0)])
