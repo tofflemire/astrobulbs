@@ -840,8 +840,11 @@ def organize_raw_images(target,filt_name,n_set = 3):
 
     for i in range(len(f_names)):
         match = ((blkuid == blkuid[i]) & (molfrnum == 1))
-        sequence_start[i] = date[match][0]
-
+        if np.sum(match) > 1:
+            sequence_start[i] = date[match][0]
+        if np.sum(match) == 1:
+            sequence_start[i] = date[match]
+        
     f_names = np.array(f_names)[np.lexsort((date,sequence_start))]
     filt = filt[np.lexsort((date,sequence_start))]
     datestr = datestr[np.lexsort((date,sequence_start))]
