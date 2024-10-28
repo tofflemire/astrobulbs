@@ -242,6 +242,12 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
 
     ee=np.unique(fname)
 
+    hjd_ee=np.zeros(ee.size)
+    for i in range(ee.size):
+        hjd_ee[i] = hjd[fname == ee[i]][0]
+
+    ee = ee[np.argsort(hjd_ee)]
+
     print(ee.size)
         
     matches={'Target':[]}
@@ -287,9 +293,9 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
         print('Frames with no match: ',bad_frames)
     #else:
         #bad_frames = ['none']
-    print('Continue? Yes (y), No (n)?')
+    print('Continue? Yes (y), No (n), Update an existing file (u)?')
     cont=input('-->')
-    while cont not in ['y','n']:
+    while cont not in ['y','n','u']:
         print('Try Again')
         cont=input('-->')
     
@@ -506,7 +512,112 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
             ss_eff[i]=k
             print(ee[i],k)
 
+    if cont == 'u':
+        print('Enter the name of the file you would like to update')
+        print('Here are some recent versions:')
+        print(os.system('ls *.p'))
+        old_file = input('--> ')
 
+        matches = pickle.load(open(old_file,'rb'))
+
+        searched = [matches['Target'][i][0] for i in range(len(matches['Target']))]
+
+        print('Already searched',len(searched),'images of the total',len(ee))
+
+        found_star_keys = list(matches.keys())
+
+        for i in range(len(found_star_keys)):
+            print('Matching ',i+1,' of ',len(found_star_keys))
+
+            for j in range(ee.size):
+                if ee[j] not in searched:
+                    ra_i = np.unique([matches[found_star_keys[i]][k][10] for k in range(len(matches[found_star_keys[i]]))])
+                    ra_i_med = np.median(ra_i)
+
+                    dec_i = np.unique([matches[found_star_keys[i]][k][11] for k in range(len(matches[found_star_keys[i]]))])
+                    dec_i_med = np.median(dec_i)
+
+                    m_list = (fname == ee[j])
+
+                    d=np.sqrt((ra_i_med - ra[m_list])**2 + 
+                              (dec_i_med - dec[m_list])**2)
+
+                    d_add=np.append(d,100.0)
+
+                    c_match=(d == np.min(d))
+
+                    if ((np.min(d) < d_max/3600.0) &						#distance is less than the threshold
+                        ((np.sort(d_add))[1] > nn_dist*(pixs/3600.0))		#nearest neightbor is not too close
+                                    )==True:
+
+                        w = [1.0, 1.0, 1.0, 1.0/(((magerr[m_list])[c_match])[0])**2]
+                        
+                        matches[found_star_keys[i]].append( \
+                            [((fname[m_list])[c_match])[0],
+                             ((iid[m_list])[c_match])[0],
+                             ((hjd[m_list])[c_match])[0],
+                             ((flux[m_list])[c_match])[0],
+                             ((fluxerr[m_list])[c_match])[0],
+                             ((mag[m_list])[c_match])[0],
+                             ((magerr[m_list])[c_match])[0],
+                             ((filt[m_list])[c_match])[0],
+                             ((px[m_list])[c_match])[0],
+                             ((py[m_list])[c_match])[0],
+                             ((ra[m_list])[c_match])[0],
+                             ((dec[m_list])[c_match])[0]]+w+
+                            [((air[m_list])[c_match])[0]])
+
+                    else:	#i.e. star not found
+
+                        w = [1.0, 1.0, 1.0*10**-20, 1.0*10**-20]
+
+                        matches[found_star_keys[i]].append([\
+                                'NotFound',
+                                0,
+                                hjd[fname == ee[i]][0],
+                                0.1,
+                                0.1,
+                                0.1,
+                                0.1,
+                                filt,
+                                px[fname == ee[i]][0],
+                                py[fname == ee[i]][0],
+                                ra[fname == ee[i]][0],
+                                dec[fname == ee[i]][0]]+w+
+                                [air[fname == ee[i]][0]])
+
+        keys=np.array(list(matches.keys()))
+
+        print('')
+        print('Total comp stars matched: ',np.array(keys[keys != 'Target'],
+                                              dtype=str).size)
+        print('')
+
+        pickle.dump(matches,open(out_file+'.p','wb'))
+
+        name=np.array(['in_file ','scope   ','out_file','d_max   ','nn_dist ',
+                       'min_apps','mag_ulim','mag_llim','magerr_ulim'])
+        used=np.array([in_file,scope,out_file,d_max,nn_dist,min_apps,mag_ulim,
+                       mag_llim,magerr_ulim],dtype='str')
+        np.savetxt(out_file+'.mpar',np.c_[name,used],fmt='%s')
+    
+        
+    
+        print('Image Set, Comparison Stars Found')
+        ss=np.array(keys,dtype=str)
+        ss_eff=np.zeros(ee.size) #num of non-zero (10^-8) weight stars. 
+        for i in range(ee.size):
+            k=0
+            for j in range(ss.size):
+                if (matches[ss[j]][i][12] == 1.0) &\
+                   (matches[ss[j]][i][13] == 1.0) &\
+                   (matches[ss[j]][i][14] == 1.0) == True:
+                    k=k+1
+            ss_eff[i]=k
+            print(ee[i],k)
+
+#
+#        print('Continuing with '+str(ee.size)+' frames')
     return
 
 
@@ -1313,14 +1424,30 @@ def ens_lc(in_file,target,date,scope,all_lc='yes',n_min=20,s_width=0.25):
         flinear = interpolate.interp1d(m0[p==1][np.argsort(m0[p==1])],m0err[p==1][np.argsort(m0[p==1])])
         y_linear = flinear(x_new)
         y_smooth = gaussian_filter(y_linear,s_width/dm0)
-        emp_std = y_smooth[np.abs(x_new-m0[keys=='Target']) == np.min(np.abs(x_new-m0[keys=='Target']))]
+
+        if np.min(ens_mag) < np.min(m0[p==1]):
+            x_smooth = np.concatenate([[np.min(ens_mag)],x_new])
+            y_smooth = np.concatenate([[np.min(y_smooth)],y_smooth])
+        elif (np.max(ens_mag) > np.max(m0[p==1])):
+            x_smooth = np.concatenate([x_new,[np.max(ens_mag)]])
+            y_smooth = np.concatenate([y_smooth,[np.max(y_smooth)]])
+        else:
+            x_smooth = x_new
+
+        f_lin_smooth = interpolate.interp1d(x_smooth,y_smooth)
+
+        emp_std = f_lin_smooth(ens_mag)
+
+        ens_mag_err = np.sqrt(ens_mag_err**2 + emp_std**2)
+        
+        #emp_std = y_smooth[np.abs(x_new-m0[keys=='Target']) == np.min(np.abs(x_new-m0[keys=='Target']))]
 
         print('Min statistical error: ',np.min(ens_mag_err))
-        print('Empirical std: ',emp_std[0])
+        #print('Empirical std: ',emp_std[0])
 
-        err_inflate = np.sqrt(emp_std**2 - np.min(ens_mag_err)**2)
+        #err_inflate = np.sqrt(emp_std**2 - np.min(ens_mag_err)**2)
 
-        ens_mag_err = np.sqrt(ens_mag_err**2 + err_inflate**2)
+        #ens_mag_err = np.sqrt(ens_mag_err**2 + err_inflate**2)
 
         print('Updated min exposure error: ',np.min(ens_mag_err))
 
