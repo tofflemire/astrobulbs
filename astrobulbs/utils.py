@@ -289,8 +289,14 @@ def roll_image(image, diff, threshold=0.5):
     offset = np.nanmedian(diff[:, 0])
     xshift = np.nanmedian(diff[:, 1])
     yshift = np.nanmedian(diff[:, 2])
-    xshift_int = int(np.round(xshift, 0))
-    yshift_int = int(np.round(yshift, 0))
+
+    try:
+        xshift_int = int(np.round(xshift, 0))
+        yshift_int = int(np.round(yshift, 0))
+    except:
+        xshift_int = 0
+        yshift_int = 0
+    
     if np.max(np.abs([xshift_int,yshift_int])) > threshold:
         image_shift = np.roll(image, (yshift_int, xshift_int), axis = (0, 1))
 

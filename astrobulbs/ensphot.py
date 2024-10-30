@@ -527,7 +527,7 @@ def ens_match(in_file,tra,tdec,scope='lcogt',out_file='default',d_max=1.0,nn_dis
         found_star_keys = list(matches.keys())
 
         for i in range(len(found_star_keys)):
-            print('Matching ',i+1,' of ',len(found_star_keys))
+            print('Matching ',i+1,' of ',len(found_star_keys)-1)
 
             for j in range(ee.size):
                 if ee[j] not in searched:
