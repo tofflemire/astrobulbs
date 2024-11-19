@@ -519,7 +519,7 @@ def build_psf(image, stars_tbl, fwhm):
     size = int(5*fwhm)
 
     if (size % 2) == 0:
-    	size = size + 1
+        size = size + 1
 
     stars = extract_stars(nddata, stars_tbl, size = size)
     epsf_builder = EPSFBuilder(oversampling=2, maxiters=10, progress_bar=False, smoothing_kernel='quadratic')
@@ -600,7 +600,7 @@ def get_residuals(results, photometry, fwhm, image):
 
     size = int(5*fwhm)
     if (size % 2) == 0:
-    	size = size + 1
+        size = size + 1
     
     
     final_stars = extract_stars(nddata, results_tbl, size=size)
